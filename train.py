@@ -723,14 +723,6 @@ def get_current_location():
     return 39.2904, -76.6122
 
 
-import plotly.graph_objs as go
-import plotly.express as px
-from plotly.colors import qualitative
-from textwrap import dedent
-import numpy as np
-import pandas as pd
-from datetime import datetime
-
 def generate_recommendations(df, prediction):
     """Generate personalized, actionable recommendations"""
     recommendations = []
@@ -832,6 +824,17 @@ def generate_recommendations(df, prediction):
         })
     
     return recommendations
+
+
+
+import plotly.graph_objs as go
+import plotly.express as px
+from plotly.colors import qualitative
+from textwrap import dedent
+import numpy as np
+import pandas as pd
+from datetime import datetime
+
 
 def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "dashboard.html"):
     """
