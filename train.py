@@ -853,6 +853,40 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     alerts = prediction.get("condition_alerts", []) or []
     factors = prediction.get("risk_factors", []) or []
 
+    # Add to render_dashboard function, after the helpers section:
+
+    # ---------- CORRELATION HEATMAP ----------
+    corr_fig = None
+    correlation_cols = [c for c in df.columns if c in [
+        'readiness_score', 'sleep_score', 'temp_deviation', 
+        'pressure', 'stress_high', 'hr_daytime_mean', 'likely_flare_day'
+    ]]
+
+    if len(correlation_cols) >= 4:
+        corr_matrix = df[correlation_cols].corr()
+        
+        # Create heatmap
+        corr_fig = go.Figure(data=go.Heatmap(
+            z=corr_matrix.values,
+            x=[c.replace('_', ' ').title() for c in corr_matrix.columns],
+            y=[c.replace('_', ' ').title() for c in corr_matrix.columns],
+            colorscale='RdBu',
+            zmid=0,
+            text=corr_matrix.values.round(2),
+            texttemplate='%{text}',
+            textfont={"size": 10},
+            colorbar=dict(title="Correlation")
+        ))
+        corr_fig.update_layout(
+            title="What Drives Your Flares? (Correlation Matrix)",
+            height=400,
+            margin=dict(l=120, r=20, t=60, b=100),
+            xaxis=dict(tickangle=-45)
+        )
+
+    # Add to parts dict:
+    parts['correlation'] = corr_fig.to_html(full_html=False, include_plotlyjs=False) if corr_fig else ""
+        
     # ---------- trend charts - FIXED ----------
     trend_specs = [
         ("readiness_score", "Readiness (14d)", ""),
@@ -999,6 +1033,33 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         .grid.cols-2 { grid-template-columns: 1fr; }
         .metric-cards { grid-template-columns: 1fr; }
       }
+    /* Add to existing CSS */
+    .recommendations { display: grid; gap: 12px; margin-top: 12px; }
+    .rec-card {
+    display: flex; gap: 12px; align-items: start;
+    background: var(--chip); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    }
+    .rec-card.critical { border-left: 3px solid var(--danger); }
+    .rec-card.high { border-left: 3px solid var(--warn); }
+    .rec-card.medium { border-left: 3px solid #5b9bd5; }
+    .rec-card.low { border-left: 3px solid var(--ok); }
+    .rec-icon { font-size: 24px; line-height: 1; }
+    .rec-content { flex: 1; }
+    .rec-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .rec-detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* Correlation heatmap styling */
+    .correlation-panel { grid-column: 1 / -1; }
+
+    /* Weekly pattern */
+    .pattern-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; }
+    .day-card { background: var(--chip); border: 1px solid var(--border); border-radius: 8px; padding: 12px 8px; }
+    .day-name { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .day-risk { font-size: 20px; font-weight: 700; }
+    .day-risk.high { color: var(--danger); }
+    .day-risk.medium { color: var(--warn); }
+    .day-risk.low { color: var(--ok); }
     </style>
     """)
 
