@@ -734,12 +734,6 @@ from datetime import datetime
 def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "dashboard.html"):
     """
     Create a standalone, self-contained HTML dashboard for the daily report.
-
-    Expects:
-      - df: your processed dataframe from extract_features/create_risk_labels/train_model
-      - prediction: dict returned by predict_next_days(...)
-    Writes:
-      - output_path HTML with embedded Plotly JS & CSS (no server required)
     """
 
     # ---------- helpers ----------
@@ -772,28 +766,25 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         )
         return fig
 
-    # ---------- FIX: Properly handle the dataframe ----------
+    # ---------- Prepare dataframe ----------
     df = df.copy()
     
-    # Ensure date column exists and is datetime
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date")
-        
-        # Set date as index for easier slicing
         if df.index.name != 'date':
             df = df.set_index("date")
     else:
-        # If no date column, assume index is already datetime
         if not isinstance(df.index, pd.DatetimeIndex):
             raise ValueError("DataFrame must have a 'date' column or DatetimeIndex")
     
-    # Get the most recent 30 and 14 days of data
-    # Use tail() instead of last() to get the most recent rows regardless of date gaps
     recent = df.tail(30) if len(df) >= 30 else df
     last14 = df.tail(14) if len(df) >= 14 else df
     
     print(f"  Dashboard using data from {recent.index.min().date()} to {recent.index.max().date()}")
+
+    # ---------- INITIALIZE parts dictionary ----------
+    parts = {}
 
     # ---------- risk gauge ----------
     risk_score = float(prediction.get("risk_score", 0))
@@ -821,8 +812,9 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         title={"text": "Overall Flare Risk"}
     ))
     gauge.update_layout(height=250, margin=dict(l=20, r=20, t=60, b=20))
+    parts["gauge"] = gauge.to_html(full_html=False, include_plotlyjs=True)
 
-    # ---------- key metrics tiles - USE MOST RECENT DATA ----------
+    # ---------- key metrics tiles ----------
     readiness = last_non_null(last14.get("readiness_score", pd.Series(dtype=float)))
     temp_dev = last_non_null(last14.get("temp_deviation", pd.Series(dtype=float)))
     pressure = last_non_null(last14.get("pressure", pd.Series(dtype=float)))
@@ -832,62 +824,16 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     pressure_delta = delta_str(last14.get("pressure", pd.Series(dtype=float)), periods=3, suffix=" hPa")
 
     metric_cards = [
-        {
-            "title": "Readiness",
-            "value": f"{num(readiness, '—', '{:.0f}')}/100",
-            "delta": readiness_delta
-        },
-        {
-            "title": "Temp Dev",
-            "value": f"{num(temp_dev, '—', '{:+.2f}')}°C",
-            "delta": temp_delta
-        },
-        {
-            "title": "Pressure",
-            "value": f"{num(pressure, '—', '{:.1f}')} hPa",
-            "delta": pressure_delta
-        }
+        {"title": "Readiness", "value": f"{num(readiness, '—', '{:.0f}')}/100", "delta": readiness_delta},
+        {"title": "Temp Dev", "value": f"{num(temp_dev, '—', '{:+.2f}')}°C", "delta": temp_delta},
+        {"title": "Pressure", "value": f"{num(pressure, '—', '{:.1f}')} hPa", "delta": pressure_delta}
     ]
 
     # ---------- chips / alerts ----------
     alerts = prediction.get("condition_alerts", []) or []
     factors = prediction.get("risk_factors", []) or []
 
-    # Add to render_dashboard function, after the helpers section:
-
-    # ---------- CORRELATION HEATMAP ----------
-    corr_fig = None
-    correlation_cols = [c for c in df.columns if c in [
-        'readiness_score', 'sleep_score', 'temp_deviation', 
-        'pressure', 'stress_high', 'hr_daytime_mean', 'likely_flare_day'
-    ]]
-
-    if len(correlation_cols) >= 4:
-        corr_matrix = df[correlation_cols].corr()
-        
-        # Create heatmap
-        corr_fig = go.Figure(data=go.Heatmap(
-            z=corr_matrix.values,
-            x=[c.replace('_', ' ').title() for c in corr_matrix.columns],
-            y=[c.replace('_', ' ').title() for c in corr_matrix.columns],
-            colorscale='RdBu',
-            zmid=0,
-            text=corr_matrix.values.round(2),
-            texttemplate='%{text}',
-            textfont={"size": 10},
-            colorbar=dict(title="Correlation")
-        ))
-        corr_fig.update_layout(
-            title="What Drives Your Flares? (Correlation Matrix)",
-            height=400,
-            margin=dict(l=120, r=20, t=60, b=100),
-            xaxis=dict(tickangle=-45)
-        )
-
-    # Add to parts dict:
-    parts['correlation'] = corr_fig.to_html(full_html=False, include_plotlyjs=False) if corr_fig else ""
-        
-    # ---------- trend charts - FIXED ----------
+    # ---------- trend charts ----------
     trend_specs = [
         ("readiness_score", "Readiness (14d)", ""),
         ("sleep_score", "Sleep (14d)", ""),
@@ -897,21 +843,23 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     trend_figs = []
     for col, ttl, ytt in trend_specs:
         if col in last14.columns and last14[col].notna().sum() >= 3:
-            # Create series with proper datetime index
             series = last14[col].dropna()
             trend_figs.append(sparkline(series, ttl, ytitle=ytt))
         else:
-            # empty placeholder
             fig = go.Figure()
             fig.update_layout(title=ttl, height=120, margin=dict(l=30, r=10, t=40, b=30))
             trend_figs.append(fig)
 
-    # ---------- anomalies bar - FIXED ----------
+    parts["trend_1"] = trend_figs[0].to_html(full_html=False, include_plotlyjs=False)
+    parts["trend_2"] = trend_figs[1].to_html(full_html=False, include_plotlyjs=False)
+    parts["trend_3"] = trend_figs[2].to_html(full_html=False, include_plotlyjs=False)
+    parts["trend_4"] = trend_figs[3].to_html(full_html=False, include_plotlyjs=False)
+
+    # ---------- anomalies bar ----------
     if "is_anomaly" in recent.columns:
         anomalies = recent["is_anomaly"].fillna(0)
         anom_fig = px.bar(
-            x=anomalies.index,
-            y=anomalies.values,
+            x=anomalies.index, y=anomalies.values,
             labels={"x": "Date", "y": "Anomaly"},
             title="Recent Anomalies (30d)"
         )
@@ -919,103 +867,123 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     else:
         anom_fig = go.Figure()
         anom_fig.update_layout(title="Recent Anomalies (30d)", height=200)
+    
+    parts["anom"] = anom_fig.to_html(full_html=False, include_plotlyjs=False)
 
-    # ---------- top features (optional) ----------
-    top_feat_fig = None
-    # Only create if we have enough numeric columns
-    num_cols = df.select_dtypes(include=[np.number])
-    if len(num_cols.columns) >= 5:
-        # Get columns with highest variance
-        variances = num_cols.var().sort_values(ascending=False).head(10)
-        if len(variances) > 0:
-            top_feat_fig = px.bar(
-                y=variances.index,
-                x=variances.values,
-                orientation="h",
-                title="High-Variance Features",
-                labels={"x": "Variance", "y": "Feature"}
+    # ---------- correlation heatmap ----------
+    correlation_cols = [c for c in df.columns if c in [
+        'readiness_score', 'sleep_score', 'temp_deviation', 
+        'pressure', 'stress_high', 'hr_daytime_mean', 'likely_flare_day'
+    ]]
+
+    if len(correlation_cols) >= 4:
+        try:
+            corr_matrix = df[correlation_cols].corr()
+            corr_fig = go.Figure(data=go.Heatmap(
+                z=corr_matrix.values,
+                x=[c.replace('_', ' ').title() for c in corr_matrix.columns],
+                y=[c.replace('_', ' ').title() for c in corr_matrix.columns],
+                colorscale='RdBu', zmid=0,
+                text=corr_matrix.values.round(2),
+                texttemplate='%{text}',
+                textfont={"size": 10},
+                colorbar=dict(title="Correlation")
+            ))
+            corr_fig.update_layout(
+                title="What Drives Your Flares? (Correlation Matrix)",
+                height=400, margin=dict(l=120, r=20, t=60, b=100),
+                xaxis=dict(tickangle=-45)
             )
-            top_feat_fig.update_layout(height=280, margin=dict(l=150, r=20, t=50, b=40))
+            parts['correlation'] = corr_fig.to_html(full_html=False, include_plotlyjs=False)
+        except Exception as e:
+            print(f"  ⚠ Could not create correlation heatmap: {e}")
+            parts['correlation'] = ""
+    else:
+        parts['correlation'] = ""
 
-    # ---------- past-30-day flare strip - FIXED ----------
-    flare_strip = None
+    # ---------- weekly pattern ----------
+    if 'day_of_week' in df.columns and 'likely_flare_day' in df.columns:
+        try:
+            weekly_pattern = df.groupby('day_of_week')['likely_flare_day'].agg(['mean', 'count'])
+            weekly_pattern['risk_pct'] = weekly_pattern['mean'] * 100
+            
+            days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            colors = ['#d83a3a' if x > 50 else '#e2a300' if x > 30 else '#2ea44f' 
+                      for x in weekly_pattern['risk_pct'].values]
+            
+            weekly_fig = go.Figure(data=[go.Bar(
+                x=days, y=weekly_pattern['risk_pct'].values,
+                marker_color=colors,
+                text=[f"{v:.0f}%" for v in weekly_pattern['risk_pct'].values],
+                textposition='auto',
+            )])
+            weekly_fig.update_layout(
+                title="Your Weekly Pattern - Which Days Are Hardest?",
+                height=250, margin=dict(l=40, r=20, t=50, b=40),
+                yaxis_title="Flare Risk %", showlegend=False
+            )
+            parts['weekly'] = weekly_fig.to_html(full_html=False, include_plotlyjs=False)
+        except Exception as e:
+            print(f"  ⚠ Could not create weekly pattern: {e}")
+            parts['weekly'] = ""
+    else:
+        parts['weekly'] = ""
+
+    # ---------- past-30-day flare strip ----------
     if "likely_flare_day" in recent.columns:
-        strip = recent["likely_flare_day"].fillna(0)
-        colors = ["#e8f5e9" if v == 0 else "#ffcccc" for v in strip.values]
-        flare_strip = go.Figure(
-            data=[go.Bar(
-                x=strip.index, 
-                y=[1]*len(strip), 
+        try:
+            strip = recent["likely_flare_day"].fillna(0)
+            colors = ["#e8f5e9" if v == 0 else "#ffcccc" for v in strip.values]
+            flare_strip = go.Figure(data=[go.Bar(
+                x=strip.index, y=[1]*len(strip), 
                 marker_color=colors, 
                 hovertext=[f"{d.date()} — {'Flare' if v==1 else 'OK'}" for d, v in zip(strip.index, strip.values)], 
                 hoverinfo="text"
-            )]
-        )
-        flare_strip.update_layout(
-            title="Flare Days (Past 30d)",
-            height=90,
-            margin=dict(l=40, r=20, t=40, b=10),
-            xaxis=dict(showticklabels=False),
-            yaxis=dict(visible=False)
-        )
+            )])
+            flare_strip.update_layout(
+                title="Flare Days (Past 30d)", height=90,
+                margin=dict(l=40, r=20, t=40, b=10),
+                xaxis=dict(showticklabels=False),
+                yaxis=dict(visible=False)
+            )
+            parts["flare_strip"] = flare_strip.to_html(full_html=False, include_plotlyjs=False)
+        except Exception as e:
+            print(f"  ⚠ Could not create flare strip: {e}")
+            parts["flare_strip"] = ""
+    else:
+        parts["flare_strip"] = ""
+
+    # ---------- Generate recommendations ----------
+    recommendations = generate_recommendations(df, prediction)
 
     # ---------- assemble HTML ----------
-    # Convert figures to HTML snippets with embedded JS
-    parts = {
-        "gauge": gauge.to_html(full_html=False, include_plotlyjs=True),
-        "anom": anom_fig.to_html(full_html=False, include_plotlyjs=False),
-        "trend_1": trend_figs[0].to_html(full_html=False, include_plotlyjs=False),
-        "trend_2": trend_figs[1].to_html(full_html=False, include_plotlyjs=False),
-        "trend_3": trend_figs[2].to_html(full_html=False, include_plotlyjs=False),
-        "trend_4": trend_figs[3].to_html(full_html=False, include_plotlyjs=False),
-        "features": (top_feat_fig.to_html(full_html=False, include_plotlyjs=False) if top_feat_fig else ""),
-        "flare_strip": (flare_strip.to_html(full_html=False, include_plotlyjs=False) if flare_strip else ""),
-    }
-
     today_str = datetime.now().strftime("%A, %B %d, %Y")
     badge = {"HIGH": "danger", "MODERATE": "warn", "LOW": "ok"}.get(risk_level, "ok")
 
     css = dedent("""
     <style>
       :root {
-        --bg: #0b0d10;
-        --panel: #12151a;
-        --panel-2: #171b21;
-        --text: #e8eef6;
-        --muted: #a9b4c2;
-        --ok: #2ea44f;
-        --warn: #e2a300;
-        --danger: #d83a3a;
-        --chip: #20252d;
-        --border: #2a2f37;
+        --bg: #0b0d10; --panel: #12151a; --panel-2: #171b21;
+        --text: #e8eef6; --muted: #a9b4c2; --ok: #2ea44f;
+        --warn: #e2a300; --danger: #d83a3a; --chip: #20252d; --border: #2a2f37;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0; padding: 24px 24px 48px;
         background: radial-gradient(1200px 800px at 10% -10%, #0d1117, #0b0d10);
-        color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+        color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
       }
       .container { max-width: 1200px; margin: 0 auto; }
-      .header {
-        display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px;
-      }
+      .header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
       .title { font-size: 22px; font-weight: 600; letter-spacing: .2px; }
       .subtitle { color: var(--muted); font-size: 14px; }
-      .badge {
-        padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .4px;
-      }
+      .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
       .badge.ok { background: color-mix(in oklab, var(--ok) 20%, transparent); color: #b9ffd1; border: 1px solid color-mix(in oklab, var(--ok) 50%, transparent); }
       .badge.warn { background: color-mix(in oklab, var(--warn) 20%, transparent); color: #ffe4a6; border: 1px solid color-mix(in oklab, var(--warn) 50%, transparent); }
       .badge.danger { background: color-mix(in oklab, var(--danger) 20%, transparent); color: #ffd2d2; border: 1px solid color-mix(in oklab, var(--danger) 50%, transparent); }
-
       .grid { display: grid; gap: 16px; }
       .grid.cols-2 { grid-template-columns: 1.2fr 1fr; }
-      .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-      .panel {
-        background: linear-gradient(180deg, var(--panel), var(--panel-2));
-        border: 1px solid var(--border); border-radius: 14px; padding: 16px;
-        box-shadow: 0 10px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.02);
-      }
+      .panel { background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.02); }
       .panel h3 { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; letter-spacing: .3px; }
       .metric-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
       .metric-card { background: var(--chip); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
@@ -1023,43 +991,20 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
       .metric-value { font-size: 22px; font-weight: 700; }
       .metric-delta { font-size: 12px; color: var(--muted); margin-top: 2px; }
       .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-      .chip {
-        background: var(--chip); border: 1px solid var(--border); color: var(--text);
-        padding: 6px 10px; border-radius: 999px; font-size: 12px;
-      }
+      .chip { background: var(--chip); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
       .list { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+      .recommendations { display: grid; gap: 12px; margin-top: 12px; }
+      .rec-card { display: flex; gap: 12px; align-items: start; background: var(--chip); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+      .rec-card.critical { border-left: 3px solid var(--danger); }
+      .rec-card.high { border-left: 3px solid var(--warn); }
+      .rec-card.medium { border-left: 3px solid #5b9bd5; }
+      .rec-card.low { border-left: 3px solid var(--ok); }
+      .rec-icon { font-size: 24px; line-height: 1; }
+      .rec-content { flex: 1; }
+      .rec-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+      .rec-detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
       .footer { margin-top: 18px; color: var(--muted); font-size: 12px; text-align: right; }
-      @media (max-width: 980px) {
-        .grid.cols-2 { grid-template-columns: 1fr; }
-        .metric-cards { grid-template-columns: 1fr; }
-      }
-    /* Add to existing CSS */
-    .recommendations { display: grid; gap: 12px; margin-top: 12px; }
-    .rec-card {
-    display: flex; gap: 12px; align-items: start;
-    background: var(--chip); border: 1px solid var(--border);
-    border-radius: 10px; padding: 12px;
-    }
-    .rec-card.critical { border-left: 3px solid var(--danger); }
-    .rec-card.high { border-left: 3px solid var(--warn); }
-    .rec-card.medium { border-left: 3px solid #5b9bd5; }
-    .rec-card.low { border-left: 3px solid var(--ok); }
-    .rec-icon { font-size: 24px; line-height: 1; }
-    .rec-content { flex: 1; }
-    .rec-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
-    .rec-detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-    /* Correlation heatmap styling */
-    .correlation-panel { grid-column: 1 / -1; }
-
-    /* Weekly pattern */
-    .pattern-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; }
-    .day-card { background: var(--chip); border: 1px solid var(--border); border-radius: 8px; padding: 12px 8px; }
-    .day-name { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-    .day-risk { font-size: 20px; font-weight: 700; }
-    .day-risk.high { color: var(--danger); }
-    .day-risk.medium { color: var(--warn); }
-    .day-risk.low { color: var(--ok); }
+      @media (max-width: 980px) { .grid.cols-2 { grid-template-columns: 1fr; } .metric-cards { grid-template-columns: 1fr; } }
     </style>
     """)
 
@@ -1077,7 +1022,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     <div class="header">
       <div>
         <div class="title">Daily Flare Dashboard</div>
-        <div class="subtitle">{today_str}</div>
+        <div class="subtitle">{today_str} • Data: {recent.index.min().date()} to {recent.index.max().date()}</div>
       </div>
       <div class="badge {badge}">{warning}</div>
     </div>
@@ -1087,23 +1032,28 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         <h3>Risk Overview</h3>
         {parts["gauge"]}
         <div class="metric-cards">
-          {''.join([f'''
-            <div class="metric-card">
-              <div class="metric-title">{m["title"]}</div>
-              <div class="metric-value">{m["value"]}</div>
-              <div class="metric-delta">{m["delta"]}</div>
-            </div>''' for m in metric_cards])}
+          {''.join([f'<div class="metric-card"><div class="metric-title">{m["title"]}</div><div class="metric-value">{m["value"]}</div><div class="metric-delta">{m["delta"]}</div></div>' for m in metric_cards])}
         </div>
       </div>
+      <div class="panel">
+        <h3>🎯 Today's Action Plan</h3>
+        <div class="recommendations">
+          {''.join([f'<div class="rec-card {r.get("priority", "medium")}"><div class="rec-icon">{r["icon"]}</div><div class="rec-content"><div class="rec-title">{r["title"]}</div><div class="rec-detail">{r["detail"]}</div></div></div>' for r in recommendations[:4]])}  
+        </div>
+      </div>
+    </div>
 
+    <div class="grid cols-2" style="margin-top:16px;">
       <div class="panel">
         <h3>Condition Alerts</h3>
         <div class="chips">
-          {''.join([f'<div class="chip">{a}</div>' for a in alerts]) or '<div class="chip">No active alerts</div>'}
+          {''.join([f'<div class="chip">{a}</div>' for a in alerts]) or '<div class="chip">✓ No active alerts</div>'}
         </div>
-        <h3 style="margin-top:14px;">Key Risk Factors</h3>
+      </div>
+      <div class="panel">
+        <h3>Current Risk Factors</h3>
         <div class="list">
-          {''.join([f'<div>• {f}</div>' for f in factors]) or '<div>• None elevated</div>'}
+          {''.join([f'<div>• {f}</div>' for f in factors]) or '<div>✓ No elevated risk factors</div>'}
         </div>
       </div>
     </div>
@@ -1119,15 +1069,20 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
 
     <div class="grid cols-2" style="margin-top:16px;">
       <div class="panel">
-        {parts["anom"]}
+        {parts.get("weekly", "<h3>Weekly Pattern</h3><div style='color:var(--muted);font-size:13px;'>Not enough data yet</div>")}
       </div>
       <div class="panel">
-        {parts["flare_strip"]}
-        {'<div style="height:8px;"></div>'+parts["features"] if parts["features"] else '<h3>Features</h3><div style="color:var(--muted);font-size:13px;">No feature view available today.</div>'}
+        {parts.get("flare_strip", "<h3>Flare History</h3><div style='color:var(--muted);font-size:13px;'>No flare data available</div>")}
       </div>
     </div>
 
-    <div class="footer">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+    {f'<div class="panel" style="margin-top:16px;">{parts["correlation"]}</div>' if parts.get("correlation") else ""}
+
+    <div class="panel" style="margin-top:16px;">
+      {parts["anom"]}
+    </div>
+
+    <div class="footer">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} • Model trained on {len(df)} days of data</div>
   </div>
 </body>
 </html>
