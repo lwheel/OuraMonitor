@@ -772,15 +772,28 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         )
         return fig
 
-    # ---------- slice recent window ----------
+    # ---------- FIX: Properly handle the dataframe ----------
     df = df.copy()
+    
+    # Ensure date column exists and is datetime
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date")
-        df = df.set_index("date")
-
-    recent = df.last("30D") if len(df) else df  # fall back to full if needed
-    last14 = df.last("14D") if len(df) else df
+        
+        # Set date as index for easier slicing
+        if df.index.name != 'date':
+            df = df.set_index("date")
+    else:
+        # If no date column, assume index is already datetime
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError("DataFrame must have a 'date' column or DatetimeIndex")
+    
+    # Get the most recent 30 and 14 days of data
+    # Use tail() instead of last() to get the most recent rows regardless of date gaps
+    recent = df.tail(30) if len(df) >= 30 else df
+    last14 = df.tail(14) if len(df) >= 14 else df
+    
+    print(f"  Dashboard using data from {recent.index.min().date()} to {recent.index.max().date()}")
 
     # ---------- risk gauge ----------
     risk_score = float(prediction.get("risk_score", 0))
@@ -809,7 +822,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     ))
     gauge.update_layout(height=250, margin=dict(l=20, r=20, t=60, b=20))
 
-    # ---------- key metrics tiles ----------
+    # ---------- key metrics tiles - USE MOST RECENT DATA ----------
     readiness = last_non_null(last14.get("readiness_score", pd.Series(dtype=float)))
     temp_dev = last_non_null(last14.get("temp_deviation", pd.Series(dtype=float)))
     pressure = last_non_null(last14.get("pressure", pd.Series(dtype=float)))
@@ -840,7 +853,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     alerts = prediction.get("condition_alerts", []) or []
     factors = prediction.get("risk_factors", []) or []
 
-    # ---------- trend charts ----------
+    # ---------- trend charts - FIXED ----------
     trend_specs = [
         ("readiness_score", "Readiness (14d)", ""),
         ("sleep_score", "Sleep (14d)", ""),
@@ -850,44 +863,59 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     trend_figs = []
     for col, ttl, ytt in trend_specs:
         if col in last14.columns and last14[col].notna().sum() >= 3:
-            trend_figs.append(sparkline(last14[col], ttl, ytitle=ytt))
+            # Create series with proper datetime index
+            series = last14[col].dropna()
+            trend_figs.append(sparkline(series, ttl, ytitle=ytt))
         else:
             # empty placeholder
             fig = go.Figure()
             fig.update_layout(title=ttl, height=120, margin=dict(l=30, r=10, t=40, b=30))
             trend_figs.append(fig)
 
-    # ---------- anomalies bar ----------
-    anomalies = recent.get("is_anomaly", pd.Series(dtype=float)).fillna(0)
-    anom_fig = px.bar(
-        anomalies.resample("D").sum(),
-        labels={"value": "Anomalies", "date": "Date"},
-        title="Recent Anomalies (30d)"
-    )
-    anom_fig.update_layout(height=200, margin=dict(l=40, r=10, t=40, b=30), showlegend=False)
+    # ---------- anomalies bar - FIXED ----------
+    if "is_anomaly" in recent.columns:
+        anomalies = recent["is_anomaly"].fillna(0)
+        anom_fig = px.bar(
+            x=anomalies.index,
+            y=anomalies.values,
+            labels={"x": "Date", "y": "Anomaly"},
+            title="Recent Anomalies (30d)"
+        )
+        anom_fig.update_layout(height=200, margin=dict(l=40, r=10, t=40, b=30), showlegend=False)
+    else:
+        anom_fig = go.Figure()
+        anom_fig.update_layout(title="Recent Anomalies (30d)", height=200)
 
     # ---------- top features (optional) ----------
     top_feat_fig = None
-    if "anomaly_score" in df.columns and "likely_flare_day" in df.columns and "features.json":
-        # try to surface most varying features for a quick glance
-        num_cols = df.select_dtypes(include=[np.number])
+    # Only create if we have enough numeric columns
+    num_cols = df.select_dtypes(include=[np.number])
+    if len(num_cols.columns) >= 5:
+        # Get columns with highest variance
         variances = num_cols.var().sort_values(ascending=False).head(10)
-        top_feat_fig = px.bar(
-            variances.sort_values(),
-            orientation="h",
-            title="High-Variance Features (proxy for attention)"
-        )
-        top_feat_fig.update_layout(height=280, margin=dict(l=80, r=20, t=50, b=40))
+        if len(variances) > 0:
+            top_feat_fig = px.bar(
+                y=variances.index,
+                x=variances.values,
+                orientation="h",
+                title="High-Variance Features",
+                labels={"x": "Variance", "y": "Feature"}
+            )
+            top_feat_fig.update_layout(height=280, margin=dict(l=150, r=20, t=50, b=40))
 
-    # ---------- past-30-day flare strip ----------
+    # ---------- past-30-day flare strip - FIXED ----------
     flare_strip = None
     if "likely_flare_day" in recent.columns:
-        strip = recent["likely_flare_day"].reindex(
-            pd.date_range(recent.index.min(), recent.index.max(), freq="D")
-        ).fillna(0)
+        strip = recent["likely_flare_day"].fillna(0)
         colors = ["#e8f5e9" if v == 0 else "#ffcccc" for v in strip.values]
         flare_strip = go.Figure(
-            data=[go.Bar(x=strip.index, y=[1]*len(strip), marker_color=colors, hovertext=[f"{d.date()} — {'Flare' if v==1 else 'OK'}" for d, v in zip(strip.index, strip.values)], hoverinfo="text")]
+            data=[go.Bar(
+                x=strip.index, 
+                y=[1]*len(strip), 
+                marker_color=colors, 
+                hovertext=[f"{d.date()} — {'Flare' if v==1 else 'OK'}" for d, v in zip(strip.index, strip.values)], 
+                hoverinfo="text"
+            )]
         )
         flare_strip.update_layout(
             title="Flare Days (Past 30d)",
@@ -1046,7 +1074,6 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"✓ Dashboard written to {output_path}")
-
 
 
 def main():
