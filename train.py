@@ -699,28 +699,12 @@ class EnhancedFlarePredictor:
 
 
 def get_current_location():
-    """Automatically detect current location using IP geolocation"""
-    try:
-        # Use ipapi.co for free IP geolocation (no key needed)
-        response = requests.get('https://ipapi.co/json/', timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        
-        latitude = data.get('latitude')
-        longitude = data.get('longitude')
-        city = data.get('city', 'Unknown')
-        region = data.get('region', 'Unknown')
-        
-        if latitude and longitude:
-            print(f"✓ Detected location: {city}, {region} ({latitude:.4f}, {longitude:.4f})")
-            return latitude, longitude
-        
-    except Exception as e:
-        print(f"⚠ Could not auto-detect location: {e}")
-        print("  Using default: Baltimore, MD")
-    
-    # Fallback to Baltimore
-    return 39.2904, -76.6122
+    """Get location for weather data (Baltimore, MD)"""
+    # Your location for weather data
+    latitude = 39.33537371622224  # Baltimore
+    longitude = -76.62190176782971
+    print(f"✓ Location: Baltimore, MD ({latitude:.4f}, {longitude:.4f})")
+    return latitude, longitude
 
 
 import plotly.graph_objs as go
