@@ -731,6 +731,108 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 
+def generate_recommendations(df, prediction):
+    """Generate personalized, actionable recommendations"""
+    recommendations = []
+    recent = df.tail(7)
+    
+    # Risk-based recommendations
+    risk_score = prediction['risk_score']
+    
+    if risk_score >= 70:
+        recommendations.append({
+            'icon': '🚨',
+            'title': 'High Flare Risk Day',
+            'detail': 'Cancel non-essential activities. Focus on rest, hydration, and symptom management.',
+            'priority': 'critical'
+        })
+    
+    # Readiness-based
+    if prediction['current_metrics']['readiness'] and prediction['current_metrics']['readiness'] < 70:
+        recommendations.append({
+            'icon': '😴',
+            'title': 'Prioritize Rest',
+            'detail': 'Low readiness detected. Limit activities to essential tasks only. Aim for 8+ hours sleep tonight.',
+            'priority': 'high'
+        })
+    
+    # Weather alerts
+    if 'pressure_drop_24h' in recent.columns and (recent['pressure_drop_24h'] > 5).any():
+        recommendations.append({
+            'icon': '🌧️',
+            'title': 'Barometric Pressure Drop',
+            'detail': 'Pressure dropping rapidly. Stay extra hydrated (add electrolytes), avoid overexertion, consider pain management.',
+            'priority': 'high'
+        })
+    
+    # HRV/Autonomic
+    if 'hrv_hr_std' in recent.columns:
+        current_hrv = recent['hrv_hr_std'].iloc[-1]
+        baseline = recent['hrv_hr_std'].median()
+        if current_hrv < baseline * 0.7:
+            recommendations.append({
+                'icon': '🧘',
+                'title': 'Autonomic Nervous System Stress',
+                'detail': 'Low HRV detected. Try: 4-7-8 breathing (4 sec in, 7 hold, 8 out), meditation, gentle stretching, or vagal nerve exercises.',
+                'priority': 'medium'
+            })
+    
+    # Temperature/inflammation
+    if prediction['current_metrics']['temp_deviation'] and prediction['current_metrics']['temp_deviation'] > 0.3:
+        recommendations.append({
+            'icon': '🌡️',
+            'title': 'Inflammation Detected',
+            'detail': 'Elevated body temp. Consider: anti-inflammatory foods (turmeric, ginger, omega-3s), cold therapy, rest.',
+            'priority': 'high'
+        })
+    
+    # POTS-specific
+    if 'hr_spike_count' in recent.columns and recent['hr_spike_count'].iloc[-1] > 10:
+        recommendations.append({
+            'icon': '⚡',
+            'title': 'POTS Symptoms Active',
+            'detail': 'Frequent HR spikes. Increase salt/fluid intake, wear compression garments, avoid sudden position changes.',
+            'priority': 'high'
+        })
+    
+    # Stress management
+    if 'stress_high' in recent.columns and recent['stress_high'].iloc[-1] > 0.6:
+        recommendations.append({
+            'icon': '🎯',
+            'title': 'High Stress Levels',
+            'detail': 'Elevated stress detected. Reduce commitments today, practice saying no, delegate tasks where possible.',
+            'priority': 'medium'
+        })
+    
+    # Cycle-aware
+    if 'premenstrual' in recent.columns and recent['premenstrual'].iloc[-1]:
+        recommendations.append({
+            'icon': '🌙',
+            'title': 'Pre-Menstrual Phase',
+            'detail': 'Hormone fluctuations active. Extra self-care needed. Consider: magnesium supplement, reduce caffeine/salt, heating pad.',
+            'priority': 'medium'
+        })
+    
+    # Good day encouragement
+    if risk_score < 30:
+        recommendations.append({
+            'icon': '✨',
+            'title': 'Good Day Opportunity',
+            'detail': 'Metrics looking favorable! Good day for: gentle exercise (walking, yoga), social activities, or tackling a backlogged task.',
+            'priority': 'low'
+        })
+    
+    # Sleep quality
+    if 'sleep_score' in recent.columns and recent['sleep_score'].iloc[-1] < 70:
+        recommendations.append({
+            'icon': '🌙',
+            'title': 'Improve Sleep Quality',
+            'detail': 'Poor sleep detected. Tonight: no screens 1hr before bed, cool room (65-68°F), magnesium supplement, consistent bedtime.',
+            'priority': 'medium'
+        })
+    
+    return recommendations
+
 def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "dashboard.html"):
     """
     Create a standalone, self-contained HTML dashboard for the daily report.
