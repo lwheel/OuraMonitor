@@ -1,0 +1,29 @@
+FLARE RISK REPORT - Thursday, November 06, 2025 at 01:38 AM
+======================================================================
+
+⚡ Elevated Flare Risk
+Risk Score: 40/100 (MODERATE)
+
+Condition-Specific Alerts:
+  🌧️ Weather-sensitive flare risk
+
+Risk Factors:
+  • Barometric pressure drops (2 recent)
+  • 4 anomalous days in past 2 weeks
+
+Recent Trends (past 3 days):
+  ↑ readiness_score: +18.0
+  ↑ sleep_score: +24.0
+  ↓ temp_deviation: -0.1
+  ↑ pressure: +5.8
+
+Current Readings:
+  Readiness: 82/100
+  Temperature: +0.07°C
+  Pressure: 1022.1 hPa
+  Cycle: Day 23 (Unknown)
+
+Past 30 Days: 5 likely flare days
+
+======================================================================
+Model trained on 295 days of data
