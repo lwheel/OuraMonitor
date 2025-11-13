@@ -19,6 +19,5 @@ node_modules/
 .DS_Store
 
 # Runtime outputs (stay local)
-logs/
 oura_data/
 oura_model/
