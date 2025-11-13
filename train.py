@@ -11,9 +11,9 @@ import pickle
 import warnings
 warnings.filterwarnings('ignore')
 
-class EnhancedFlarePredictor:
+class EnhancedRiskPredictor:
     """
-    Fully automated flare prediction using Oura Ring data + weather
+    Fully automated risk-event prediction using Oura Ring data + weather
     """
     
     def __init__(self, personal_access_token, latitude=39.0, longitude=-77.0):
@@ -369,15 +369,15 @@ class EnhancedFlarePredictor:
             hr_baseline = df['hr_daytime_mean'].median()
             conditions.append(df['hr_daytime_mean'] > (hr_baseline * 1.15))
         
-        # Combine conditions (3+ markers = likely flare)
+        # Combine conditions (3+ markers = likely risk event)
         if conditions:
             condition_count = sum([c.astype(int) for c in conditions])
-            df['likely_flare_day'] = (condition_count >= 3).astype(int)
+            df['likely_risk_day'] = (condition_count >= 3).astype(int)
             
-            flare_count = df['likely_flare_day'].sum()
-            print(f"  ✓ Identified {flare_count} likely flare days ({flare_count/len(df)*100:.1f}%)")
+            event_count = df['likely_risk_day'].sum()
+            print(f"  ✓ Identified {event_count} likely risk-event days ({event_count/len(df)*100:.1f}%)")
         else:
-            df['likely_flare_day'] = 0
+            df['likely_risk_day'] = 0
             print("  ⚠ Could not create risk labels - insufficient data")
         
         return df
@@ -388,7 +388,7 @@ class EnhancedFlarePredictor:
         
         # Select features for modeling
         feature_cols = [col for col in df.columns 
-                       if col not in ['date', 'likely_flare_day'] 
+                       if col not in ['date', 'likely_risk_day'] 
                        and df[col].dtype in [np.float64, np.int64]]
         
         X = df[feature_cols].fillna(df[feature_cols].mean())
@@ -409,9 +409,9 @@ class EnhancedFlarePredictor:
         df['anomaly_score'] = anomaly_scores
         df['is_anomaly'] = (predictions == -1).astype(int)
         
-        # Train Random Forest for flare prediction
-        if 'likely_flare_day' in df.columns and df['likely_flare_day'].sum() > 10:
-            y = df['likely_flare_day']
+        # Train Random Forest for risk-event prediction
+        if 'likely_risk_day' in df.columns and df['likely_risk_day'].sum() > 10:
+            y = df['likely_risk_day']
             rf_model = RandomForestClassifier(
                 n_estimators=100,
                 max_depth=10,
@@ -518,10 +518,10 @@ class EnhancedFlarePredictor:
         # Determine risk level
         if risk_score >= 70:
             risk_level = "HIGH"
-            warning = "🚨 FLARE WARNING - High Risk"
+            warning = "🚨 Critical Risk Window"
         elif risk_score >= 40:
             risk_level = "MODERATE"
-            warning = "⚡ Elevated Flare Risk"
+            warning = "⚡ Elevated Risk Window"
         else:
             risk_level = "LOW"
             warning = "✓ Risk Level Normal"
@@ -596,17 +596,17 @@ class EnhancedFlarePredictor:
             print(f"  Barometric Pressure: {metrics['pressure']:.1f} hPa")
         
         # Historical context
-        if 'likely_flare_day' in df.columns:
-            recent_flares = df.tail(30)['likely_flare_day'].sum()
-            print(f"\nPast 30 Days: {recent_flares} likely flare days")
+        if 'likely_risk_day' in df.columns:
+            recent_events = df.tail(30)['likely_risk_day'].sum()
+            print(f"\nPast 30 Days: {recent_events} likely risk-event days")
         
         print("\n" + "="*70)
 
 
 def get_current_location():
     """Get location for weather data from environment variables."""
-    latitude = float(os.environ.get("FLARE_HOME_LAT", 39.0))
-    longitude = float(os.environ.get("FLARE_HOME_LON", -77.0))
+    latitude = float(os.environ.get("MONITOR_HOME_LAT", 39.0))
+    longitude = float(os.environ.get("MONITOR_HOME_LON", -77.0))
     print(f"✓ Location configured ({latitude:.4f}, {longitude:.4f})")
     return latitude, longitude
 
@@ -705,7 +705,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
                 "value": risk_score,
             },
         },
-        title={"text": "Overall Flare Risk"}
+        title={"text": "Overall Risk Level"}
     ))
     gauge.update_layout(height=250, margin=dict(l=20, r=20, t=60, b=20))
 
@@ -790,22 +790,22 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
             )
             top_feat_fig.update_layout(height=280, margin=dict(l=150, r=20, t=50, b=40))
 
-    # ---------- past-30-day flare strip ----------
-    flare_strip = None
-    if "likely_flare_day" in recent.columns:
-        strip = recent["likely_flare_day"].fillna(0)
+    # ---------- past-30-day risk-event strip ----------
+    event_strip = None
+    if "likely_risk_day" in recent.columns:
+        strip = recent["likely_risk_day"].fillna(0)
         colors = ["#e8f5e9" if v == 0 else "#ffcccc" for v in strip.values]
-        flare_strip = go.Figure(
+        event_strip = go.Figure(
             data=[go.Bar(
                 x=strip.index, 
                 y=[1]*len(strip), 
                 marker_color=colors, 
-                hovertext=[f"{d.date()} — {'Flare' if v==1 else 'OK'}" for d, v in zip(strip.index, strip.values)], 
+                hovertext=[f"{d.date()} — {'Event' if v==1 else 'OK'}" for d, v in zip(strip.index, strip.values)], 
                 hoverinfo="text"
             )]
         )
-        flare_strip.update_layout(
-            title="Flare Days (Past 30d)",
+        event_strip.update_layout(
+            title="Risk Event Days (Past 30d)",
             height=90,
             margin=dict(l=40, r=20, t=40, b=10),
             xaxis=dict(showticklabels=False),
@@ -822,7 +822,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         "trend_3": trend_figs[2].to_html(full_html=False, include_plotlyjs=False),
         "trend_4": trend_figs[3].to_html(full_html=False, include_plotlyjs=False),
         "features": (top_feat_fig.to_html(full_html=False, include_plotlyjs=False) if top_feat_fig else ""),
-        "flare_strip": (flare_strip.to_html(full_html=False, include_plotlyjs=False) if flare_strip else ""),
+        "event_strip": (event_strip.to_html(full_html=False, include_plotlyjs=False) if event_strip else ""),
     }
 
     today_str = datetime.now().strftime("%A, %B %d, %Y")
@@ -896,14 +896,14 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Daily Flare Dashboard</title>
+<title>Daily Health Risk Dashboard</title>
 {css}
 </head>
 <body>
   <div class="container">
     <div class="header">
       <div>
-        <div class="title">Daily Flare Dashboard</div>
+        <div class="title">Daily Health Risk Dashboard</div>
         <div class="subtitle">{today_str}</div>
       </div>
       <div class="badge {badge}">{warning}</div>
@@ -949,7 +949,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         {parts["anom"]}
       </div>
       <div class="panel">
-        {parts["flare_strip"]}
+        {parts["event_strip"]}
         {'<div style="height:8px;"></div>'+parts["features"] if parts["features"] else '<h3>Features</h3><div style="color:var(--muted);font-size:13px;">No feature view available today.</div>'}
       </div>
     </div>
@@ -966,7 +966,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
 
 def main():
     """Run the enhanced prediction system"""
-    print("ENHANCED AUTOMATED FLARE PREDICTION SYSTEM")
+    print("ENHANCED AUTOMATED RISK PREDICTION SYSTEM")
     
     
     # Get token from environment variable
@@ -982,7 +982,7 @@ def main():
     print()
     
     # Initialize predictor
-    predictor = EnhancedFlarePredictor(
+    predictor = EnhancedRiskPredictor(
         OURA_TOKEN,
         latitude=latitude,
         longitude=longitude
@@ -1018,7 +1018,7 @@ def main():
     
     # Save prediction summary to daily log
     with open(log_file, 'w') as f:
-        f.write(f"FLARE RISK REPORT - {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}\n")
+        f.write(f"RISK EVENT REPORT - {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}\n")
         f.write("=" * 70 + "\n\n")
         f.write(f"{prediction['warning']}\n")
         f.write(f"Risk Score: {prediction['risk_score']}/100 ({prediction['risk_level']})\n\n")
@@ -1051,9 +1051,9 @@ def main():
         if metrics['pressure']:
             f.write(f"  Pressure: {metrics['pressure']:.1f} hPa\n")
         
-        if 'likely_flare_day' in df.columns:
-            recent_flares = df.tail(30)['likely_flare_day'].sum()
-            f.write(f"\nPast 30 Days: {recent_flares} likely flare days\n")
+        if 'likely_risk_day' in df.columns:
+            recent_events = df.tail(30)['likely_risk_day'].sum()
+            f.write(f"\nPast 30 Days: {recent_events} likely risk-event days\n")
         
         f.write("\n" + "=" * 70 + "\n")
         f.write(f"Model trained on {len(df)} days of data\n")
