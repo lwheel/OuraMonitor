@@ -1,9 +1,3 @@
-"""
-Enhanced Automated Oura Ring Flare Prediction System
-Includes weather data, detailed HRV analysis, and condition-specific markers
-No manual input required - learns from physiological patterns alone
-"""
-
 import requests
 import pandas as pd
 import numpy as np
@@ -20,17 +14,15 @@ warnings.filterwarnings('ignore')
 class EnhancedFlarePredictor:
     """
     Fully automated flare prediction using Oura Ring data + weather
-    Tailored for UCTD, POTS, Fibromyalgia, HSD, and CRMO
     """
     
-    def __init__(self, personal_access_token, latitude=39.2904, longitude=-76.6122):
+    def __init__(self, personal_access_token, latitude=39.0, longitude=-77.0):
         """
-        Initialize predictor
         
         Args:
             personal_access_token: Oura API token
-            latitude: Your location latitude (default: Baltimore)
-            longitude: Your location longitude (default: Baltimore)
+            latitude
+            longitude
         """
         self.oura_base_url = "https://api.ouraring.com/v2/usercollection"
         self.headers = {"Authorization": f"Bearer {personal_access_token}"}
@@ -40,7 +32,6 @@ class EnhancedFlarePredictor:
         self.model = None
         
     def _make_request(self, endpoint, params=None):
-        """Make Oura API request with error handling"""
         url = f"{self.oura_base_url}/{endpoint}"
         try:
             response = requests.get(url, headers=self.headers, params=params)
@@ -51,15 +42,13 @@ class EnhancedFlarePredictor:
             return None
     
     def get_date_range(self, days_back=300):
-        """Generate date range for API requests"""
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days_back)
         return start_date.isoformat(), end_date.isoformat()
     
     def fetch_weather_data(self, start_date, end_date):
         """
-        Fetch historical weather data including barometric pressure
-        Uses Open-Meteo API (free, no key required)
+        Use Open-Meteo API
         """
         print("  Fetching weather data...")
         
@@ -87,30 +76,29 @@ class EnhancedFlarePredictor:
                 'temp_min': data['daily']['temperature_2m_min'],
                 'temp_mean': data['daily']['temperature_2m_mean'],
                 'humidity': data['daily']['relative_humidity_2m_mean'],
-                'pressure': data['daily']['pressure_msl_mean'],  # Barometric pressure
+                'pressure': data['daily']['pressure_msl_mean'], 
                 'wind_speed': data['daily']['wind_speed_10m_max'],
                 'precipitation': data['daily']['precipitation_sum']
             })
             
-            print(f"    ✓ {len(weather_df)} days of weather data")
+            print(f"    {len(weather_df)} days of weather data")
             return weather_df
             
         except Exception as e:
-            print(f"    ✗ Could not fetch weather data: {e}")
+            print(f"    Could not fetch weather data: {e}")
             return pd.DataFrame()
     
     def fetch_all_oura_data(self, days_back=300):
-        """Fetch all relevant Oura data types"""
         start_date, end_date = self.get_date_range(days_back)
         print(f"Fetching Oura data from {start_date} to {end_date}...")
         
         endpoints = {
             'sleep': 'daily_sleep',
-            'sleep_time_series': 'sleep',  # 5-min sleep data with detailed HRV
+            'sleep_time_series': 'sleep',  
             'readiness': 'daily_readiness',
             'activity': 'daily_activity',
             'stress': 'daily_stress',
-            'heart_rate': 'heartrate'  # Continuous HR data
+            'heart_rate': 'heartrate'  
         }
         
         data = {}
@@ -123,9 +111,8 @@ class EnhancedFlarePredictor:
                 print(f"    ✓ {len(data[name])} records")
             else:
                 data[name] = pd.DataFrame()
-                print(f"    ✗ No data")
+                print(f"    No data")
         
-        # Fetch weather data
         weather = self.fetch_weather_data(start_date, end_date)
         if not weather.empty:
             data['weather'] = weather
@@ -135,7 +122,6 @@ class EnhancedFlarePredictor:
     def extract_hrv_features(self, sleep_time_series_df):
         """
         Extract detailed HRV metrics from sleep data
-        Critical for fibromyalgia, POTS, and autonomic dysfunction detection
         """
         if sleep_time_series_df.empty:
             return pd.DataFrame()
@@ -177,12 +163,10 @@ class EnhancedFlarePredictor:
         if raw_data['readiness'].empty:
             raise ValueError("No readiness data available")
         
-        # Start with readiness data
         df = raw_data['readiness'][['day', 'score', 'temperature_deviation', 
                                      'temperature_trend_deviation']].copy()
         df.columns = ['date', 'readiness_score', 'temp_deviation', 'temp_trend']
         
-        # Convert date to datetime immediately
         df['date'] = pd.to_datetime(df['date'])
         
         # Add sleep features
@@ -206,14 +190,14 @@ class EnhancedFlarePredictor:
             activity['date'] = pd.to_datetime(activity['date'])
             df = df.merge(activity, on='date', how='left')
         
-        # Add stress features (critical for all conditions)
+        # Add stress features
         if not raw_data['stress'].empty:
             stress = raw_data['stress'][['day', 'stress_high', 'recovery_high']].copy()
             stress.columns = ['date', 'stress_high', 'recovery_high']
             stress['date'] = pd.to_datetime(stress['date'])
             df = df.merge(stress, on='date', how='left')
         
-        # Add detailed HRV features (critical for fibromyalgia & POTS)
+        # Add detailed HRV features
         if not raw_data['sleep_time_series'].empty:
             hrv_data = self.extract_hrv_features(raw_data['sleep_time_series'])
             if not hrv_data.empty:
@@ -222,7 +206,7 @@ class EnhancedFlarePredictor:
                 hrv_data['date'] = pd.to_datetime(hrv_data['date'])
                 df = df.merge(hrv_data, on='date', how='left')
         
-        # Add heart rate throughout day (POTS indicator)
+        # Add heart rate throughout day
         if not raw_data['heart_rate'].empty:
             # Aggregate daily HR stats
             hr_daily = self._aggregate_heart_rate(raw_data['heart_rate'])
@@ -231,7 +215,7 @@ class EnhancedFlarePredictor:
                 hr_daily['date'] = pd.to_datetime(hr_daily['date'])
                 df = df.merge(hr_daily, on='date', how='left')
         
-        # Add weather data (critical for all autoimmune conditions)
+        # Add weather data
         if 'weather' in raw_data and not raw_data['weather'].empty:
             weather = raw_data['weather'].copy()
             weather['date'] = pd.to_datetime(weather['date'])
@@ -299,7 +283,7 @@ class EnhancedFlarePredictor:
                     baseline = df[col].mean()
                     df[f'{col}_deviation'] = df[col] - baseline
         
-        # Weather-specific features (critical for autoimmune flares)
+        # Weather-specific features
         if 'pressure' in df.columns:
             # Barometric pressure drop (major trigger)
             df['pressure_drop_24h'] = -df['pressure'].diff()
@@ -322,101 +306,41 @@ class EnhancedFlarePredictor:
         
         return df
     
-    def _infer_menstrual_phase(self, df):
-        """
-        Infer menstrual cycle phase from temperature patterns
-        Based on Oura's method: temp drops in follicular, rises in luteal
-        """
-        if 'temp_deviation' not in df.columns:
-            return df
-        
-        # Calculate 7-day rolling average of temperature
-        df['temp_7d_avg'] = df['temp_deviation'].rolling(window=7, min_periods=3).mean()
-        
-        # Detect phase based on temperature trend
-        # Positive trend = luteal phase (progesterone raises temp)
-        # Negative trend = follicular phase (estrogen lowers temp)
-        df['temp_trend_7d'] = df['temp_7d_avg'].diff(3)
-        
-        # Infer cycle phase (0=unknown, 1=follicular, 2=luteal)
-        df['inferred_cycle_phase'] = 0
-        df.loc[df['temp_trend_7d'] < -0.1, 'inferred_cycle_phase'] = 1  # Follicular
-        df.loc[df['temp_trend_7d'] > 0.1, 'inferred_cycle_phase'] = 2   # Luteal
-        
-        # Estimate cycle day (rough approximation)
-        # Look for temperature drops (potential period start)
-        temp_drops = (df['temp_deviation'].diff() < -0.2) & (df['temp_deviation'] < -0.2)
-        
-        # Initialize cycle day counter
-        df['estimated_cycle_day'] = 0
-        current_day = 0
-        
-        for idx in df.index:
-            if temp_drops.loc[idx]:
-                current_day = 1  # Reset on likely period start
-            else:
-                current_day += 1
-                if current_day > 35:  # Cap at typical max cycle length
-                    current_day = 1
-            
-            df.loc[idx, 'estimated_cycle_day'] = current_day
-        
-        return df
-    
     def _create_condition_markers(self, df):
-        """
-        Create condition-specific risk markers based on research
-        """
+        """Create neutral marker columns that never reference specific diagnoses."""
         
-        # Infer menstrual cycle phase first
-        df = self._infer_menstrual_phase(df)
-        
-        # Menstrual cycle markers (impacts all conditions)
-        if 'inferred_cycle_phase' in df.columns:
-            # Luteal phase often worsens autoimmune symptoms
-            df['luteal_phase'] = df['inferred_cycle_phase'] == 2
-            # Pre-menstrual (days 25-28 of typical cycle)
-            df['premenstrual'] = (df['estimated_cycle_day'] >= 25) & (df['estimated_cycle_day'] <= 28)
-        
-        # POTS markers: Orthostatic HR increase, autonomic dysfunction
         if 'hr_daytime_mean' in df.columns and 'hrv_hr_mean' in df.columns:
             # High daytime HR relative to sleep HR
-            df['pots_hr_elevation'] = (df['hr_daytime_mean'] - df['hrv_hr_mean']) > 30
-            df['pots_hr_spike_risk'] = df['hr_spike_count'] > 10  # Frequent HR spikes
+            df['cardio_rate_gap_flag'] = (df['hr_daytime_mean'] - df['hrv_hr_mean']) > 30
+            df['cardio_spike_flag'] = df['hr_spike_count'] > 10  # Frequent HR spikes
         
-        # Fibromyalgia markers: Low HRV, sympathetic dominance
         if 'hrv_hr_std' in df.columns:
             # Low HRV indicates autonomic dysfunction
             hrv_baseline = df['hrv_hr_std'].median()
-            df['fibro_low_hrv'] = df['hrv_hr_std'] < (hrv_baseline * 0.7)
+            df['low_hrv_flag'] = df['hrv_hr_std'] < (hrv_baseline * 0.7)
         
-        # UCTD/Autoimmune markers: Temperature, inflammation
         if 'temp_deviation' in df.columns:
-            df['autoimmune_inflammation'] = df['temp_deviation'] > 0.3
-            df['autoimmune_fever_pattern'] = df['temp_deviation'] > 0.5
-        
-        # HSD/EDS markers: Activity intolerance, fatigue
+            df['thermal_load_flag'] = df['temp_deviation'] > 0.3
+            df['thermal_spike_flag'] = df['temp_deviation'] > 0.5
+
         if 'activity_score' in df.columns and 'sleep_score' in df.columns:
-            df['hsd_overexertion'] = (df['activity_score'] > 85) & (df['sleep_score'] < 70)
-            df['hsd_poor_recovery'] = (df['readiness_score'] < 70) & (df['sleep_total_sleep'] > 7)
+            df['recovery_gap_flag'] = (df['activity_score'] > 85) & (df['sleep_score'] < 70)
+            df['slow_recovery_flag'] = (df['readiness_score'] < 70) & (df['sleep_total_sleep'] > 7)
         
-        # CRMO markers: Stress/inflammation patterns
         if 'stress_high' in df.columns:
-            df['crmo_high_stress'] = df['stress_high'] > 0.6
+            df['stress_load_flag'] = df['stress_high'] > 0.6
         
-        # Weather sensitivity (all conditions)
         if 'pressure_drop_24h' in df.columns:
-            df['weather_sensitive_flare'] = df['pressure_drop_24h'] > 5
+            df['weather_instability_flag'] = df['pressure_drop_24h'] > 5
         
         return df
     
     def create_risk_labels(self, df):
         """
-        Create multi-condition risk labels from physiological markers
+        Create neutral risk labels from aggregated physiological markers
         """
-        print("\nCreating condition-specific risk labels...")
+        print("\nCreating composite risk labels...")
         
-        # Define flare conditions for each disease
         conditions = []
         
         # General markers
@@ -435,12 +359,12 @@ class EnhancedFlarePredictor:
         if 'temp_swing_24h' in df.columns:
             conditions.append(df['temp_swing_24h'] > 10)
         
-        # HRV markers (fibromyalgia, POTS)
+        # HRV markers
         if 'hrv_hr_std' in df.columns:
             hrv_baseline = df['hrv_hr_std'].median()
             conditions.append(df['hrv_hr_std'] < (hrv_baseline * 0.7))
         
-        # HR elevation (POTS)
+        # HR elevation
         if 'hr_daytime_mean' in df.columns:
             hr_baseline = df['hr_daytime_mean'].median()
             conditions.append(df['hr_daytime_mean'] > (hr_baseline * 1.15))
@@ -485,7 +409,7 @@ class EnhancedFlarePredictor:
         df['anomaly_score'] = anomaly_scores
         df['is_anomaly'] = (predictions == -1).astype(int)
         
-        # Train Random Forest for flare prediction if we have labels
+        # Train Random Forest for flare prediction
         if 'likely_flare_day' in df.columns and df['likely_flare_day'].sum() > 10:
             y = df['likely_flare_day']
             rf_model = RandomForestClassifier(
@@ -548,11 +472,11 @@ class EnhancedFlarePredictor:
             risk_score += 25
             risk_factors.append(f"Low readiness ({current_readiness:.0f}/100)")
         
-        # Temperature/inflammation
+        # Temperature load
         if current_temp and current_temp > 0.3:
             risk_score += 30
             risk_factors.append(f"Elevated temperature (+{current_temp:.2f}°C)")
-            condition_alerts.append("⚠️ UCTD/Autoimmune inflammation detected")
+            condition_alerts.append("⚠️ Thermal load indicator elevated")
         
         # Declining trends
         if 'readiness_score' in trends and trends['readiness_score'] < -5:
@@ -565,34 +489,24 @@ class EnhancedFlarePredictor:
             if recent_pressure_drops > 0:
                 risk_score += 20
                 risk_factors.append(f"Barometric pressure drops ({recent_pressure_drops} recent)")
-                condition_alerts.append("🌧️ Weather-sensitive flare risk")
+                condition_alerts.append("🌧️ Weather instability signal")
         
-        # HRV (fibromyalgia/POTS)
+        # HRV balance
         if 'hrv_hr_std' in recent.columns:
             current_hrv = recent['hrv_hr_std'].iloc[-1]
             hrv_baseline = recent['hrv_hr_std'].median()
             if current_hrv < (hrv_baseline * 0.7):
                 risk_score += 15
-                risk_factors.append("Low HRV (autonomic dysfunction)")
-                condition_alerts.append("💗 Fibromyalgia/POTS risk elevated")
+                risk_factors.append("Low HRV (autonomic strain)")
+                condition_alerts.append("💗 Autonomic balance indicator low")
         
-        # POTS-specific
+        # Cardiovascular load
         if 'hr_spike_count' in recent.columns:
             recent_spikes = recent['hr_spike_count'].iloc[-1]
             if recent_spikes > 10:
                 risk_score += 15
                 risk_factors.append(f"Frequent HR spikes ({recent_spikes})")
-                condition_alerts.append("⚡ POTS symptoms detected")
-        
-        # Menstrual cycle risk
-        if 'premenstrual' in recent.columns and recent['premenstrual'].iloc[-1]:
-            risk_score += 15
-            risk_factors.append("Pre-menstrual phase (increased flare risk)")
-            condition_alerts.append("🌙 Hormonal fluctuation period")
-        
-        if 'luteal_phase' in recent.columns and recent['luteal_phase'].sum() >= 10:
-            risk_score += 10
-            risk_factors.append("Extended luteal phase")
+                condition_alerts.append("⚡ Cardiovascular load indicator elevated")
         
         # Recent anomalies
         if recent_anomalies >= 4:
@@ -649,31 +563,30 @@ class EnhancedFlarePredictor:
     def generate_report(self, df, prediction):
         """Generate comprehensive health report"""
         print("\n" + "="*70)
-        print("ENHANCED MULTI-CONDITION FLARE RISK ASSESSMENT")
-        print("Conditions: UCTD, POTS, Fibromyalgia, HSD, CRMO")
+        print("ENHANCED HEALTH RISK ASSESSMENT")
         print("="*70)
         
         print(f"\n{prediction['warning']}")
         print(f"Overall Risk Score: {prediction['risk_score']}/100 ({prediction['risk_level']})")
         
         if prediction['condition_alerts']:
-            print("\n🔍 Condition-Specific Alerts:")
+            print("\nSystem Alerts:")
             for alert in prediction['condition_alerts']:
                 print(f"  {alert}")
         
         if prediction['risk_factors']:
-            print("\n⚠️ Current Risk Factors:")
+            print("\nCurrent Risk Factors:")
             for factor in prediction['risk_factors']:
                 print(f"  • {factor}")
         
         if prediction['trends']:
-            print("\n📊 Recent Trends (past 3 days):")
+            print("\nRecent Trends (past 3 days):")
             for metric, trend in prediction['trends'].items():
                 direction = "↑" if trend > 0 else "↓"
                 print(f"  {direction} {metric}: {trend:+.1f}")
         
         # Current readings
-        print("\n📍 Current Readings:")
+        print("\nCurrent Readings:")
         metrics = prediction['current_metrics']
         if metrics['readiness']:
             print(f"  Readiness: {metrics['readiness']:.0f}/100")
@@ -682,28 +595,19 @@ class EnhancedFlarePredictor:
         if metrics['pressure']:
             print(f"  Barometric Pressure: {metrics['pressure']:.1f} hPa")
         
-        # Cycle information
-        if 'inferred_cycle_phase' in df.columns:
-            recent_phase = df['inferred_cycle_phase'].iloc[-1]
-            estimated_day = df['estimated_cycle_day'].iloc[-1]
-            phase_name = {0: 'Unknown', 1: 'Follicular', 2: 'Luteal'}
-            print(f"  Estimated Cycle Phase: {phase_name.get(recent_phase, 'Unknown')}")
-            print(f"  Estimated Cycle Day: {estimated_day}")
-        
         # Historical context
         if 'likely_flare_day' in df.columns:
             recent_flares = df.tail(30)['likely_flare_day'].sum()
-            print(f"\n📅 Past 30 Days: {recent_flares} likely flare days")
+            print(f"\nPast 30 Days: {recent_flares} likely flare days")
         
         print("\n" + "="*70)
 
 
 def get_current_location():
-    """Get location for weather data (Baltimore, MD)"""
-    # Your location for weather data
-    latitude = 39.33537371622224  # Baltimore
-    longitude = -76.62190176782971
-    print(f"✓ Location: Baltimore, MD ({latitude:.4f}, {longitude:.4f})")
+    """Get location for weather data from environment variables."""
+    latitude = float(os.environ.get("FLARE_HOME_LAT", 39.0))
+    longitude = float(os.environ.get("FLARE_HOME_LON", -77.0))
+    print(f"✓ Location configured ({latitude:.4f}, {longitude:.4f})")
     return latitude, longitude
 
 
@@ -756,7 +660,6 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
         )
         return fig
 
-    # ---------- FIX: Properly handle the dataframe ----------
     df = df.copy()
     
     # Ensure date column exists and is datetime
@@ -806,7 +709,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     ))
     gauge.update_layout(height=250, margin=dict(l=20, r=20, t=60, b=20))
 
-    # ---------- key metrics tiles - USE MOST RECENT DATA ----------
+    # ---------- key metrics tiles ----------
     readiness = last_non_null(last14.get("readiness_score", pd.Series(dtype=float)))
     temp_dev = last_non_null(last14.get("temp_deviation", pd.Series(dtype=float)))
     pressure = last_non_null(last14.get("pressure", pd.Series(dtype=float)))
@@ -837,7 +740,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
     alerts = prediction.get("condition_alerts", []) or []
     factors = prediction.get("risk_factors", []) or []
 
-    # ---------- trend charts - FIXED ----------
+    # ---------- trend charts ----------
     trend_specs = [
         ("readiness_score", "Readiness (14d)", ""),
         ("sleep_score", "Sleep (14d)", ""),
@@ -856,7 +759,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
             fig.update_layout(title=ttl, height=120, margin=dict(l=30, r=10, t=40, b=30))
             trend_figs.append(fig)
 
-    # ---------- anomalies bar - FIXED ----------
+    # ---------- anomalies bar ----------
     if "is_anomaly" in recent.columns:
         anomalies = recent["is_anomaly"].fillna(0)
         anom_fig = px.bar(
@@ -887,7 +790,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
             )
             top_feat_fig.update_layout(height=280, margin=dict(l=150, r=20, t=50, b=40))
 
-    # ---------- past-30-day flare strip - FIXED ----------
+    # ---------- past-30-day flare strip ----------
     flare_strip = None
     if "likely_flare_day" in recent.columns:
         strip = recent["likely_flare_day"].fillna(0)
@@ -1021,7 +924,7 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
       </div>
 
       <div class="panel">
-        <h3>Condition Alerts</h3>
+        <h3>System Alerts</h3>
         <div class="chips">
           {''.join([f'<div class="chip">{a}</div>' for a in alerts]) or '<div class="chip">No active alerts</div>'}
         </div>
@@ -1064,8 +967,6 @@ def render_dashboard(df: pd.DataFrame, prediction: dict, output_path: str = "das
 def main():
     """Run the enhanced prediction system"""
     print("ENHANCED AUTOMATED FLARE PREDICTION SYSTEM")
-    print("UCTD • POTS • Fibromyalgia • HSD • CRMO")
-    print("Weather-aware • HRV Analysis • Multi-condition\n")
     
     
     # Get token from environment variable
@@ -1123,7 +1024,7 @@ def main():
         f.write(f"Risk Score: {prediction['risk_score']}/100 ({prediction['risk_level']})\n\n")
         
         if prediction['condition_alerts']:
-            f.write("Condition-Specific Alerts:\n")
+            f.write("System Alerts:\n")
             for alert in prediction['condition_alerts']:
                 f.write(f"  {alert}\n")
             f.write("\n")
@@ -1149,12 +1050,6 @@ def main():
             f.write(f"  Temperature: {metrics['temp_deviation']:+.2f}°C\n")
         if metrics['pressure']:
             f.write(f"  Pressure: {metrics['pressure']:.1f} hPa\n")
-        
-        if 'inferred_cycle_phase' in df.columns:
-            recent_phase = df['inferred_cycle_phase'].iloc[-1]
-            estimated_day = df['estimated_cycle_day'].iloc[-1]
-            phase_name = {0: 'Unknown', 1: 'Follicular', 2: 'Luteal'}
-            f.write(f"  Cycle: Day {estimated_day} ({phase_name.get(recent_phase, 'Unknown')})\n")
         
         if 'likely_flare_day' in df.columns:
             recent_flares = df.tail(30)['likely_flare_day'].sum()

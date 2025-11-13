@@ -1,11 +1,24 @@
 # .gitignore
+
+# Environment / secrets
 .env
 *.env
+private_exports/
+
+# Python artifacts
 __pycache__/
 *.pyc
 *.pyo
 *.pkl
+.venv/
+
+# Node / frontend
+node_modules/
+
+# OS / misc
 .DS_Store
 
-# Don't ignore the logs folder (we want to commit dashboards)
-# logs/
+# Runtime outputs (stay local)
+logs/
+oura_data/
+oura_model/

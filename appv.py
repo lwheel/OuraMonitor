@@ -6,13 +6,22 @@ from flask import Flask, request, redirect, session, url_for
 from requests_oauthlib import OAuth2Session
 from requests.auth import HTTPBasicAuth
 
+def _require_env(var_name: str) -> str:
+    value = os.environ.get(var_name)
+    if not value:
+        raise RuntimeError(
+            f"{var_name} is not configured. Add it to your .env (see .env.example)."
+        )
+    return value
+
+
 # ---- Oura OAuth config (from your app in the Oura portal) ----
-CLIENT_ID     = 'c8e2a53a-9d69-4576-96cc-82bcb60c2041'
-CLIENT_SECRET = 'iBZRvWBSpZJYYTah2RhG7enN6sr9rg2STgF4LmChy14'
+CLIENT_ID     = _require_env('OURA_CLIENT_ID')
+CLIENT_SECRET = _require_env('OURA_CLIENT_SECRET')
 AUTH_URL      = 'https://cloud.ouraring.com/oauth/authorize'
 TOKEN_URL     = 'https://api.ouraring.com/oauth/token'
-REDIRECT_URI  = 'http://localhost:5173/callback'   # must exactly match portal
-SCOPES        = ['personal', 'email']              # add more later if needed
+REDIRECT_URI  = os.environ.get('REDIRECT_URI', 'http://localhost:5173/callback')
+SCOPES        = os.environ.get('OURA_OAUTH_SCOPES', 'personal email').split()
 # --------------------------------------------------------------
 
 app = Flask(__name__)
@@ -25,7 +34,7 @@ def oura_login():
     from requests_oauthlib import OAuth2Session
 
     # Set scope on the session (only here), but DO NOT set redirect_uri
-    oura_session = OAuth2Session(CLIENT_ID, scope=['personal', 'email'])
+    oura_session = OAuth2Session(CLIENT_ID, scope=SCOPES)
 
     # PKCE (S256)
     code_verifier  = base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=').decode('ascii')

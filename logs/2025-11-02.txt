@@ -4,9 +4,9 @@ FLARE RISK REPORT - Sunday, November 02, 2025 at 01:42 AM
 🚨 FLARE WARNING - High Risk
 Risk Score: 80/100 (HIGH)
 
-Condition-Specific Alerts:
-  🌧️ Weather-sensitive flare risk
-  ⚡ POTS symptoms detected
+System Alerts:
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
 
 Risk Factors:
   • Low readiness (64/100)
@@ -24,7 +24,6 @@ Current Readings:
   Readiness: 64/100
   Temperature: +0.18°C
   Pressure: 1016.0 hPa
-  Cycle: Day 21 (Unknown)
 
 Past 30 Days: 5 likely flare days
 

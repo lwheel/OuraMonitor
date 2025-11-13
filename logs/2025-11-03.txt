@@ -4,10 +4,10 @@ FLARE RISK REPORT - Monday, November 03, 2025 at 02:38 AM
 ⚡ Elevated Flare Risk
 Risk Score: 65/100 (MODERATE)
 
-Condition-Specific Alerts:
-  ⚠️ UCTD/Autoimmune inflammation detected
-  🌧️ Weather-sensitive flare risk
-  ⚡ POTS symptoms detected
+System Alerts:
+  ⚠️ Thermal load indicator elevated
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
 
 Risk Factors:
   • Elevated temperature (+0.43°C)
@@ -24,7 +24,6 @@ Current Readings:
   Readiness: 80/100
   Temperature: +0.43°C
   Pressure: 1020.5 hPa
-  Cycle: Day 22 (Unknown)
 
 Past 30 Days: 5 likely flare days
 

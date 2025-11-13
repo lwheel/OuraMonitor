@@ -4,9 +4,9 @@ FLARE RISK REPORT - Thursday, October 30, 2025 at 10:52 PM
 ✓ Risk Level Normal
 Risk Score: 35/100 (LOW)
 
-Condition-Specific Alerts:
-  🌧️ Weather-sensitive flare risk
-  ⚡ POTS symptoms detected
+System Alerts:
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
 
 Risk Factors:
   • Barometric pressure drops (3 recent)
@@ -22,7 +22,6 @@ Current Readings:
   Readiness: 78/100
   Temperature: +0.02°C
   Pressure: 1001.9 hPa
-  Cycle: Day 19 (Unknown)
 
 Past 30 Days: 4 likely flare days
 
