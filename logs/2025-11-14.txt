@@ -1,0 +1,30 @@
+RISK EVENT REPORT - Friday, November 14, 2025 at 05:59 PM
+======================================================================
+
+⚡ Elevated Risk Window
+Risk Score: 55/100 (MODERATE)
+
+System Alerts:
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
+
+Risk Factors:
+  • Barometric pressure drops (3 recent)
+  • Frequent HR spikes (184.0)
+  • 5 anomalous days in past 2 weeks
+
+Recent Trends (past 3 days):
+  ↑ readiness_score: +3.0
+  ↓ sleep_score: +0.0
+  ↑ temp_deviation: +0.2
+  ↑ pressure: +7.7
+
+Current Readings:
+  Readiness: 91/100
+  Temperature: -0.20°C
+  Pressure: 1019.6 hPa
+
+Past 30 Days: 5 likely risk-event days
+
+======================================================================
+Model trained on 295 days of data
