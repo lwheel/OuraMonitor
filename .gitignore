@@ -18,6 +18,3 @@ node_modules/
 # OS / misc
 .DS_Store
 
-# Runtime outputs (stay local)
-oura_data/
-oura_model/
