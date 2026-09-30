@@ -1,0 +1,29 @@
+RISK EVENT REPORT - Wednesday, September 30, 2026 at 03:37 AM
+======================================================================
+
+✓ Risk Level Normal
+Risk Score: 35/100 (LOW)
+
+System Alerts:
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
+
+Risk Factors:
+  • Barometric pressure drops (2 recent)
+  • Frequent HR spikes (182.0)
+
+Recent Trends (past 3 days):
+  ↑ readiness_score: +15.0
+  ↑ sleep_score: +9.0
+  ↓ temp_deviation: -0.1
+  ↑ pressure: +9.7
+
+Current Readings:
+  Readiness: 89/100
+  Temperature: -0.20°C
+  Pressure: 1017.0 hPa
+
+Past 30 Days: 5 likely risk-event days
+
+======================================================================
+Model trained on 295 days of data
