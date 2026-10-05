@@ -1,0 +1,30 @@
+RISK EVENT REPORT - Monday, October 05, 2026 at 03:38 AM
+======================================================================
+
+⚡ Elevated Risk Window
+Risk Score: 55/100 (MODERATE)
+
+System Alerts:
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
+
+Risk Factors:
+  • Declining readiness trend
+  • Barometric pressure drops (2 recent)
+  • Frequent HR spikes (174.0)
+
+Recent Trends (past 3 days):
+  ↓ readiness_score: -11.0
+  ↓ sleep_score: -10.0
+  ↑ temp_deviation: +0.3
+  ↑ pressure: +5.9
+
+Current Readings:
+  Readiness: 73/100
+  Temperature: +0.22°C
+  Pressure: 1021.2 hPa
+
+Past 30 Days: 5 likely risk-event days
+
+======================================================================
+Model trained on 295 days of data
