@@ -1,0 +1,31 @@
+RISK EVENT REPORT - Saturday, November 14, 2026 at 04:37 AM
+======================================================================
+
+⚡ Elevated Risk Window
+Risk Score: 65/100 (MODERATE)
+
+System Alerts:
+  ⚠️ Thermal load indicator elevated
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
+
+Risk Factors:
+  • Elevated temperature (+0.35°C)
+  • Barometric pressure drops (3 recent)
+  • Frequent HR spikes (65.0)
+
+Recent Trends (past 3 days):
+  ↑ readiness_score: +7.0
+  ↑ sleep_score: +12.0
+  ↑ temp_deviation: +0.2
+  ↓ pressure: -7.9
+
+Current Readings:
+  Readiness: 92/100
+  Temperature: +0.35°C
+  Pressure: 1004.9 hPa
+
+Past 30 Days: 5 likely risk-event days
+
+======================================================================
+Model trained on 294 days of data
