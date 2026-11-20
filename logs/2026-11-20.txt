@@ -1,0 +1,32 @@
+RISK EVENT REPORT - Friday, November 20, 2026 at 05:23 AM
+======================================================================
+
+🚨 Critical Risk Window
+Risk Score: 85/100 (HIGH)
+
+System Alerts:
+  ⚠️ Thermal load indicator elevated
+  🌧️ Weather instability signal
+  ⚡ Cardiovascular load indicator elevated
+
+Risk Factors:
+  • Elevated temperature (+0.40°C)
+  • Declining readiness trend
+  • Barometric pressure drops (1 recent)
+  • Frequent HR spikes (161.0)
+
+Recent Trends (past 3 days):
+  ↓ readiness_score: -7.0
+  ↑ sleep_score: +1.0
+  ↑ temp_deviation: +0.3
+  ↓ pressure: -3.8
+
+Current Readings:
+  Readiness: 71/100
+  Temperature: +0.40°C
+  Pressure: 1030.5 hPa
+
+Past 30 Days: 5 likely risk-event days
+
+======================================================================
+Model trained on 294 days of data
